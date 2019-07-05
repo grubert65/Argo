@@ -59,6 +59,7 @@ Marco Masetti, C<< <marco.masetti at softeco.it> >>
 #===============================================================================
 use Moose;
 use RestAPI         ();
+use Log::Log4perl;
 
 has 'port' => ( is => 'rw', isa => 'Int' );
 has 'rest_client' => (
@@ -72,6 +73,13 @@ has 'rest_client' => (
             server  => 'localhost',
             port    => $self->port) 
     }
+);
+
+has 'log' => (
+    is => 'ro',
+    isa => 'Log::Log4perl::Logger',
+    lazy    => 1,
+    default => sub { return Log::Log4perl->get_logger(__PACKAGE__) },
 );
 
 
@@ -239,6 +247,8 @@ sub workflow_log {
     my ( $self, $name ) = @_;
 
     return undef unless $name;
+
+    $self->log->debug("Get log for workflow $name");
 
     $self->rest_client->query(
         "api/v1/namespaces/default/pods/$name/log"
