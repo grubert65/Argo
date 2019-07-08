@@ -34,6 +34,11 @@ our $VERSION = '0.01';
         # get an arrayref of hashmaps representing all the workflows.
         my $workflows = $client->workflows();
 
+        # get workflows and all child nodes 
+        my $workflow_tree = $client->workflows_as_tree();
+
+
+
         # get the output of a workflow as text
         my $output = $client->workflow_output($node)
     
@@ -147,6 +152,110 @@ sub workflows_as_list {
     } foreach ( @{$workflows->{items}} );
 
     return \@list;
+}
+
+#=============================================================
+
+=head2 workflows_as_tree
+
+=head3 INPUT
+
+=head3 OUTPUT
+
+=head3 DESCRIPTION
+
+
+Returns a chained list of workflows. 
+Each workflow has at least one node.
+
+A workflow has 1 or more nodes ($w->{status}->{nodes})
+A root node can be of type "Pod" or "Steps".
+There is only a node of type "Steps" per workflow.
+A node can have children.
+A node can be of type:
+- Pod : leaf node, output, can have children
+- Steps: root node, children, no output
+- StepGroup: group of child steps, no output
+
+Logic:
+
+- a node has the following data model:
+    - id
+    - parent_id
+    - startedAt 
+    - finishedAt
+    - phase (status)
+    - children => an arrayref of children nodes children, sorted by start time
+
+The method returns a chained list of Argo::Node objects.
+
+Algorithm:
+
+- for each workflow:
+    - $root = get new Argo::Node obj ( $_->{status} )
+    - if scalar keys == 1:
+        - $root->add_child( $root->{nodes}->{$keys[0]} )
+        - next
+    }
+    $steps = lookForSteps( $root->{nodes} );
+    $root->add_child ( $steps );
+    }
+
+
+    - add $root to list of workflows
+
+
+    add_child( $self, $node ) {
+    # if node is a Pod, $self = add it to self
+    # if node has children
+    #       add_child( $self, $_ ) foreach ( $self->{children} );
+
+
+
+
+
+
+
+my $root = Argo::Node->new();
+my @exploredNodes = ();
+$root = get first node
+traverse_node( $root );
+
+sub create_and_add_node(hash) {
+    $node = createNode(hash)
+    add $node to $currentNode->[children];
+}
+
+sub traverseNode (node) {
+    $currentNode = node;
+    if node it's a pod => create_and_add_node(child);
+    foreach child in node->{children} {
+        if node has children => traverseNode(child)
+    }
+}
+
+If status->nodes has 1 node => it's a pod {
+    create_and_add_node( node) 
+}
+else, the root node is the one of type "Steps" {
+    look for node of type "Steps".
+    traverseNode( node)
+}
+
+
+- for each $_->{status}->{nodes} hash keys:
+    - next if $_->{id} in @exploredNodes
+    - unless $_->{children} {
+        
+    }
+
+
+=cut
+
+#=============================================================
+sub workflows_as_tree {
+    my $self = shift;
+
 }
 
 #=============================================================
