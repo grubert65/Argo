@@ -191,17 +191,15 @@ The method returns a chained list of Argo::Node objects.
 
 Algorithm:
 
-- for each workflow:
+  - for each workflow:
     - $root = get new Argo::Node obj ( $_->{status} )
     - if scalar keys == 1:
         - $root->add_child( $root->{nodes}->{$keys[0]} )
         - next
     }
-    $steps = lookForSteps( $root->{nodes} );
+    $steps = $root->lookForSteps()
     $root->add_child ( $steps );
     }
-
-
     - add $root to list of workflows
 
 
@@ -210,52 +208,77 @@ Algorithm:
     # if node has children
     #       add_child( $self, $_ ) foreach ( $self->{children} );
 
-
-
-
-
-
-
-my $root = Argo::Node->new();
-my @exploredNodes = ();
-$root = get first node
-traverse_node( $root );
-
-sub create_and_add_node(hash) {
-    $node = createNode(hash)
-    add $node to $currentNode->[children];
-}
-
-sub traverseNode (node) {
-    $currentNode = node;
-    if node it's a pod => create_and_add_node(child);
-    foreach child in node->{children} {
-        if node has children => traverseNode(child)
-    }
-}
-
-If status->nodes has 1 node => it's a pod {
-    create_and_add_node( node) 
-}
-else, the root node is the one of type "Steps" {
-    look for node of type "Steps".
-    traverseNode( node)
-}
-
-
-- for each $_->{status}->{nodes} hash keys:
-    - next if $_->{id} in @exploredNodes
-    - unless $_->{children} {
-        
-    }
-
-
 =cut
 
 #=============================================================
+# sub workflows_as_tree {
+#     my $self = shift;
+# 
+#     my $treeList = [];
+#     my $workflows = $self->workflows();
+# 
+#     foreach my $workflow ( @$workflows ) {
+#         my $root = Argo::Node->new( $workflow->{status} );
+#         my @keys = keys %{$root->{nodes}};
+#         if ( scalar @keys == 1 ) {
+#             $root->add_child( $root->{nodes}->{$keys[0]} );
+#             push @$treeList, $root;
+#             next;
+#         }
+#         my $steps = $root->lookForSteps();
+#         $root->add_child( $steps );
+#         push @$treeList, $root;
+#     }
+#     return $treeList;
+# }
+
 sub workflows_as_tree {
     my $self = shift;
 
+    my $treeList = {};
+    my $workflows = $self->workflows();
+
+    foreach my $workflow ( @{$workflows->{items}} ) {
+        my $item = {};
+        foreach ( qw( 
+            finishedAt
+            startedAt
+            phase
+            )) {
+            $item->{$_} = $workflow->{status}->{$_};
+        }
+        $item->{parent} = undef;
+        $item->{id} = $workflow->{metadata}->{name};
+        $item->{type} = 'workflow';
+        $treeList->{$item->{id}} = $item;
+
+        my $nodes = $workflow->{status}->{nodes};
+        foreach my $key ( keys %$nodes ) {
+            my $node = {};
+            foreach ( qw( 
+                children
+                finishedAt
+                startedAt
+                phase
+                type
+                id
+                )) {
+                $node->{$_} = $workflow->{status}->{nodes}->{$key}->{$_};
+            }
+            $node->{parent} = $item->{id};
+            unless( exists $treeList->{$node->{id}} ) {
+                $treeList->{$node->{id}} = $node;
+            }
+        }
+    }
+    # and now revisit all tree to fix children...
+    foreach ( keys %$treeList ) {
+        if ( ( $treeList->{$_}->{type} eq 'StepGroup' )||
+             ( $treeList->{$_}->{type} eq 'Steps' ) ) {
+             delete $treeList->{$_};
+         }
+    }
+    return $treeList;
 }
 
 #=============================================================
