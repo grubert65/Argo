@@ -65,6 +65,7 @@ Marco Masetti, C<< <marco.masetti at softeco.it> >>
 use Moose;
 use RestAPI         ();
 use Log::Log4perl;
+use Try::Tiny;
 
 has 'port' => ( is => 'rw', isa => 'Int' );
 has 'rest_client' => (
@@ -364,11 +365,16 @@ sub workflow_log {
         "api/v1/namespaces/default/pods/$name/log"
     );
 
-    $self->rest_client->q_params({
-            container => 'main'
-    });
+    try {
+        $self->rest_client->q_params({
+                container => 'main'
+        });
 
-    return $self->rest_client->do();
+        return $self->rest_client->do();
+    } catch {
+        $self->log->error("[ERROR]: coudn't get log for workflow $name");
+        return "";
+    };
 }
 
 1; 
