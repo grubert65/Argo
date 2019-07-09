@@ -97,7 +97,7 @@ has 'log' => (
 
 =head3 OUTPUT
 
-An arrayref
+An HashRef
 
 =head3 DESCRIPTION
 
@@ -111,6 +111,32 @@ sub workflows {
     my $self = shift;
 
     $self->rest_client->query('apis/argoproj.io/v1alpha1/namespaces/default/workflows');
+    return $self->rest_client->do();
+}
+
+
+#=============================================================
+
+=head2 workflow
+
+=head3 INPUT
+
+    $name : the workflow name
+
+=head3 OUTPUT
+
+=head3 DESCRIPTION
+
+Returns the medatata for the passed workflow name
+
+=cut
+
+#=============================================================
+sub workflow {
+    my ( $self, $name ) = @_;
+    
+    return undef unless $name;
+    $self->rest_client->query("apis/argoproj.io/v1alpha1/namespaces/default/workflows/$name");
     return $self->rest_client->do();
 }
 
@@ -270,61 +296,11 @@ sub add_children {
 
 =head3 OUTPUT
 
+An ArrayRef
+
 =head3 DESCRIPTION
 
-Tries to fetch the main workflow container metadata and extract the following 
-information:
-- image: the container image
-- command: the command that has been run on the container
-- args: a list of printable args split by the space char, this could be an example:
-
-
-    ['cp',
-    '/keys/id_rsa'
-    '~/.ssh/' 
-    '\u0026\u0026 
-    chmod 
-    600 
-    ~/.ssh/id_rsa 
-    \u0026\u0026 
-    /app/ycsb-0.15.0/bin/ycsb.sh 
-    load 
-    cassandra-cql 
-    -P 
-    /app/ycsb-0.15.0/workloads/workloada 
-    -target 
-    100000 
-    -threads 
-    1 
-    -p 
-    exporter=com.yahoo.ycsb.measurements.exporter.JSONMeasurementsExporter 
-    -p 
-    hosts=\"cassandra-disruptive-0,cassandra-disruptive-1,cassandra-disruptive-2,cassandra-disruptive-3,cassandra-disruptive-4,cassandra-disruptive-5,cassandra-disruptive-6,cassandra-disruptive-7,cassandra-disruptive-8,cassandra-disruptive-9,cassandra-disruptive-10,cassandra-disruptive-11\" 
-    -p 
-    port=9042 
-    -p 
-    maxexecutiontime=600 
-    -p 
-    operationcount=100000 
-    -p 
-    readallfields=true 
-    -p 
-    recordcount=100000 
-    -p 
-    requestdistribution=uniform 
-    -p 
-    cassandra.keyspace=ycsb 
-    -p 
-    cassandra.username=cassandra 
-    -p 
-    cassandra.password=cassandra 
-    -p 
-    cassandra.readconsistencylevel=QUORUM 
-    -p 
-    cassandra.writeconsistencylevel=QUORUM 
-    2\u003e 
-    /dev/null"
-
+Tries to fetch the workflow argument parameters if any.
 
 =cut
 
@@ -332,7 +308,12 @@ information:
 sub workflow_params {
     my ($self, $name) = @_;
 
-    return undef unless $name;
+    return [] unless $name;
+
+    my $workflow = $self->workflow( $name );
+    my $params = $workflow->{spec}->{arguments}->{parameters} // [];
+
+    return $params;
 }
 
 
