@@ -224,6 +224,11 @@ sub workflows_as_tree {
         }
         $item->{parent} = undef;
         $item->{id} = $workflow->{metadata}->{name};
+        $item->{name} = $item->{id};
+        if ( exists $workflow->{metadata}->{annotations} && 
+             exists $workflow->{metadata}->{annotations}->{title} ) {
+             $item->{name} = "[$item->{id}]: ".$workflow->{metadata}->{annotations}->{title};
+         }
         $item->{type} = 'workflow';
         $self->{treeList}->{$item->{id}} = $item;
 
@@ -243,6 +248,7 @@ sub workflows_as_tree {
                 $node->{$_} = $self->{nodes}->{$key}->{$_};
             }
             $node->{parent} = $item->{id};
+            $node->{name} = $node->{id};
 
             # the node can have children...
             unless( exists $self->{treeList}->{$node->{id}} ) {
@@ -281,6 +287,7 @@ sub add_children {
             $child->{$_} = $self->{nodes}->{$child_id}->{$_};
         }
         $child->{parent} = $node->{id};
+        $child->{name} = $child->{id};
         $self->{treeList}->{$child_id} = $child;
         $self->add_children( $child );
     }
@@ -310,13 +317,22 @@ sub workflow_params {
 
     return [] unless $name;
 
-    my $workflow = $self->workflow( $name );
-    my $params = $workflow->{spec}->{arguments}->{parameters} // [];
+    try {
+        my $workflow = $self->workflow( $name );
+        my $params = $workflow->{spec}->{arguments}->{parameters} // [];
 
-    return $params;
+        # and for something completely different...a Schwartzian transform!!
+        my @sorted = grep { $_->{name} !~ /password/ }
+                    map  { $_->[1]                  }
+                    sort { $a->[0] cmp $b->[0]      }
+                    map  { [ $_->{name}, $_ ]       } @$params;
+    
+        return \@sorted;
+    } catch {
+        $self->log->error("[ERROR]: Error getting params for workflow $name: $_");
+        return [];
+    };
 }
-
-
 
 #=============================================================
 
