@@ -168,7 +168,7 @@ sub workflows_as_list {
 Returns a chained list of workflows. 
 Each workflow has at least one node.
 
-A workflow has 1 or more nodes ($w->{status}->{nodes})
+A workflow has 1 or more nodes.
 A root node can be of type "Pod" or "Steps".
 There is only a node of type "Steps" per workflow.
 A node can have children.
@@ -177,68 +177,16 @@ A node can be of type:
 - Steps: root node, children, no output
 - StepGroup: group of child steps, no output
 
-Logic:
-
-- a node has the following data model:
-    - id
-    - parent_id
-    - startedAt 
-    - finishedAt
-    - phase (status)
-    - children => an arrayref of children nodes children, sorted by start time
-
-The method returns a chained list of Argo::Node objects.
-
-Algorithm:
-
-  - for each workflow:
-    - $root = get new Argo::Node obj ( $_->{status} )
-    - if scalar keys == 1:
-        - $root->add_child( $root->{nodes}->{$keys[0]} )
-        - next
-    }
-    $steps = $root->lookForSteps()
-    $root->add_child ( $steps );
-    }
-    - add $root to list of workflows
-
-
-    add_child( $self, $node ) {
-    # if node is a Pod, $self = add it to self
-    # if node has children
-    #       add_child( $self, $_ ) foreach ( $self->{children} );
-
 =cut
 
 #=============================================================
-# sub workflows_as_tree {
-#     my $self = shift;
-# 
-#     my $treeList = [];
-#     my $workflows = $self->workflows();
-# 
-#     foreach my $workflow ( @$workflows ) {
-#         my $root = Argo::Node->new( $workflow->{status} );
-#         my @keys = keys %{$root->{nodes}};
-#         if ( scalar @keys == 1 ) {
-#             $root->add_child( $root->{nodes}->{$keys[0]} );
-#             push @$treeList, $root;
-#             next;
-#         }
-#         my $steps = $root->lookForSteps();
-#         $root->add_child( $steps );
-#         push @$treeList, $root;
-#     }
-#     return $treeList;
-# }
-
 sub workflows_as_tree {
     my $self = shift;
 
-    my $treeList = {};
-    my $workflows = $self->workflows();
+    $self->{treeList} = {};
+    $self->{workflows} = $self->workflows();
 
-    foreach my $workflow ( @{$workflows->{items}} ) {
+    foreach my $workflow ( @{$self->{workflows}->{items}} ) {
         my $item = {};
         foreach ( qw( 
             finishedAt
@@ -250,10 +198,12 @@ sub workflows_as_tree {
         $item->{parent} = undef;
         $item->{id} = $workflow->{metadata}->{name};
         $item->{type} = 'workflow';
-        $treeList->{$item->{id}} = $item;
+        $self->{treeList}->{$item->{id}} = $item;
 
-        my $nodes = $workflow->{status}->{nodes};
-        foreach my $key ( keys %$nodes ) {
+        $self->{nodes} = $workflow->{status}->{nodes};
+        foreach my $key ( keys %{$self->{nodes}} ) {
+            next if (( $self->{nodes}->{$key}->{type} eq 'StepGroup' ) || 
+                     ( $self->{nodes}->{$key}->{type} eq 'Steps' ));
             my $node = {};
             foreach ( qw( 
                 children
@@ -263,22 +213,50 @@ sub workflows_as_tree {
                 type
                 id
                 )) {
-                $node->{$_} = $workflow->{status}->{nodes}->{$key}->{$_};
+                $node->{$_} = $self->{nodes}->{$key}->{$_};
             }
             $node->{parent} = $item->{id};
-            unless( exists $treeList->{$node->{id}} ) {
-                $treeList->{$node->{id}} = $node;
+
+            # the node can have children...
+            unless( exists $self->{treeList}->{$node->{id}} ) {
+                $self->{treeList}->{$node->{id}} = $node;
             }
+            $self->add_children( $node );
         }
     }
-    # and now revisit all tree to fix children...
-    foreach ( keys %$treeList ) {
-        if ( ( $treeList->{$_}->{type} eq 'StepGroup' )||
-             ( $treeList->{$_}->{type} eq 'Steps' ) ) {
-             delete $treeList->{$_};
-         }
+    $self->clean_tree();
+    return [ values %{$self->{treeList}} ];
+}
+
+sub clean_tree {
+    my $self = shift;
+
+    foreach ( keys %{$self->{treeList}} ) {
+        delete $self->{treeList}->{$_}->{children};
     }
-    return $treeList;
+}
+
+sub add_children {
+    my ( $self, $node ) = @_;
+
+    return unless ( $node->{children} && scalar @{$node->{children}} ); 
+    foreach my $child_id ( @{$node->{children}} ) {
+        next unless ( exists $self->{nodes}->{$child_id} );
+        my $child = {};
+        foreach ( qw( 
+            children
+            finishedAt
+            startedAt
+            phase
+            type
+            id
+            )) {
+            $child->{$_} = $self->{nodes}->{$child_id}->{$_};
+        }
+        $child->{parent} = $node->{id};
+        $self->{treeList}->{$child_id} = $child;
+        $self->add_children( $child );
+    }
 }
 
 #=============================================================
