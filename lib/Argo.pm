@@ -234,8 +234,7 @@ sub workflows_as_tree {
 
         $self->{nodes} = $workflow->{status}->{nodes};
         foreach my $key ( keys %{$self->{nodes}} ) {
-            next if (( $self->{nodes}->{$key}->{type} eq 'StepGroup' ) || 
-                     ( $self->{nodes}->{$key}->{type} eq 'Steps' ));
+            next unless ( $self->{nodes}->{$key}->{type} eq 'Pod' );
             my $node = {};
             foreach ( qw( 
                 children
@@ -372,6 +371,72 @@ sub workflow_log {
         $self->log->error("[ERROR]: coudn't get log for workflow $name");
         return "";
     };
+}
+
+#=============================================================
+
+=head2 get_pods_of_workflow
+
+=head3 INPUT
+
+    $steps : all workflows steps
+    $id    : id of the root workflow step
+
+=head3 OUTPUT
+
+An ArrayRef
+
+=head3 DESCRIPTION
+
+Given all workflows steps and the id of the selected workflow
+it browses all steps retrieving the ids of the workflow steps
+of type Pod.
+
+Algorithm:
+- for each step:
+- next if not a pod
+-- while ( has a parent ) :
+--- add to parent
+
+=cut
+
+#=============================================================
+sub get_pods_of_workflow {
+    my ( $self, $steps, $id ) = @_;
+
+    my @pods;
+
+    my $steps_by_id = {};
+    foreach my $step ( @$steps ) {
+        if ( exists $steps_by_id->{$step->{id}} ) {
+            die "Error]: apparently there are more steps with the same id...";
+        }
+        $steps_by_id->{$step->{id}} = $step;
+    }
+
+    foreach my $step ( @$steps ) {
+        next unless ( $step->{type} eq 'Pod' );
+        if (_is_child_of($steps_by_id, $step, $id)) {
+            push @pods, $step->{id};
+        }
+    }
+    return \@pods;
+}
+
+
+# traverses back from step up to its root 
+# returns 1 if root is $id, otherwise 0
+sub _is_child_of {
+    my ( $steps_by_id, $step, $id ) = @_;
+
+    while ( my $parent = $step->{parent} ) {
+        $step = $steps_by_id->{$parent};
+        if ( $step->{id} eq $id ) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 1; 
