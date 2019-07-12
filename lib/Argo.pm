@@ -245,11 +245,12 @@ sub workflows_as_tree {
                 phase
                 type
                 id
+                displayName
                 )) {
                 $node->{$_} = $self->{nodes}->{$key}->{$_};
             }
             $node->{parent} = $item->{id};
-            $node->{name} = $node->{id};
+            $node->{name} = $node->{displayName};
 
             # the node can have children...
             unless( exists $self->{treeList}->{$node->{id}} ) {
@@ -284,11 +285,12 @@ sub add_children {
             phase
             type
             id
+            displayName
             )) {
             $child->{$_} = $self->{nodes}->{$child_id}->{$_};
         }
         $child->{parent} = $node->{id};
-        $child->{name} = $child->{id};
+        $child->{name} = $child->{displayName};
         $self->{treeList}->{$child_id} = $child;
         $self->add_children( $child );
     }
@@ -419,7 +421,7 @@ sub get_pods_of_workflow {
     foreach my $step ( @$steps ) {
         next unless ( $step->{type} eq 'Pod' );
         if (_is_child_of($steps_by_id, $step, $id)) {
-            push @pods, $step->{id};
+            push @pods, { id => $step->{id}, name => $step->{name} };
         }
     }
     return \@pods;
