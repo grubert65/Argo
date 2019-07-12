@@ -77,7 +77,9 @@ has 'rest_client' => (
         return RestAPI->new( 
             scheme  => 'http',
             server  => 'localhost',
-            port    => $self->port) 
+            port    => $self->port,
+            timeout => 1,
+        ) 
     }
 );
 
