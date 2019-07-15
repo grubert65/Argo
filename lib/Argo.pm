@@ -266,7 +266,15 @@ sub workflows_as_tree {
 sub clean_tree {
     my $self = shift;
 
+    $DB::single=1;
     foreach ( keys %{$self->{treeList}} ) {
+        if ( $self->{treeList}->{$_}->{type} eq 'StepGroup' ) {
+            foreach my $child ( @{$self->{treeList}->{$_}->{children}} ) {
+                $self->{treeList}->{$child}->{parent} = $self->{treeList}->{$_}->{parent};
+            }
+            delete $self->{treeList}->{$_};
+            next;
+        }
         delete $self->{treeList}->{$_}->{children};
     }
 }
